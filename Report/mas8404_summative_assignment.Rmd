@@ -1,0 +1,364 @@
+---
+title: "MAS8404 Statistical Learning Project"
+author: "Abdullah Turki H Alshadadi, 190582184"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+set.seed(1)
+source("../mas8404_summative_assignment.R")
+```
+
+## Introduction
+
+This is a report on the Wisconsin `BreastCancer` dataset. The goal is to build a
+classifier that is able to identify if a tissue sample has benign or malignant 
+cancer tumor using only the 9 cytological characteristics in the dataset.
+
+## Exploratory Data Analysis
+
+Before proceeding with the exploratory data analysis, the `BreastCancer` dataset
+contains `NA` row values. Due to the limted time given, these rows `NA` values 
+will simply be removed reducing the dataset from `r BreastCancer %>% nrow()` to
+`r bc_no_id %>% nrow()`.
+
+
+The distribution of tissue sample of benign or malignant is 
+`r class_distribution$benign` and `r class_distribution$malignant` respectively.
+The data contain more benign tissue samples,
+`r paste0(round(100 * (class_distribution$benign / (class_distribution$benign + class_distribution$malignant)), 2), "%")`, than malignant tissue samples,
+`r paste0(round(100 * (class_distribution$malignant / (class_distribution$benign + class_distribution$malignant)),2), "%")`, by
+`r paste0(round(class_distribution$benign / (class_distribution$benign - class_distribution$malignant), 2), "x")`. This could effect the generalisation of the classifier as it might 
+understand the cytological characteristics that constitutes a benign tissue 
+tumor much better than a malignant tissue. Therefore, an out-of-sample 
+K-fold cross validation could be used to help mitigate bias
+model evaluation by better assessing the imbalanced
+class values of the tissue samples through ensuring each fold has balanced
+representation of both classes (that is benign and malignant).
+
+
+```{r, echo=FALSE, warning=FALSE, error=FALSE}
+knitr::kable(class_distribution,
+             caption = "Distribution benign and malignant tissue samples in `BreastCancer` dataset")
+```
+
+Plotting a scatterplot matrix (See [Appendix](#appendix)) shows that there are clear divide of benign and 
+malignant samples, where lower cytological characteristics values tends to 
+represent benign tissues whereas larger values shows a malignant values.
+
+Without considering the "Mitoses" variable, 
+benign tissue sample variables tend to range in the mean values of 
+`r min(summary_stats$benign[-9,]$Mean)` to 
+`r max(summary_stats$benign[-9,]$Mean)` whereas malignant tissue sample
+variables mean range from `r min(summary_stats$malignant[-9,]$Mean)` to
+`r max(summary_stats$malignant[-9,]$Mean)`. This conveys a great separation of 
+the classes which hints that modelling classifiers would likely have great 
+accuracy identifying that tissue samples with lower cytological 
+characteristics tends to be benign and higher tends to be malignant.
+
+Although there are outliers like benign cytological characteristics containing
+a high value of `r max(summary_stats$benign[-9,]$Max)` and malignant 
+containing a low value of `r min(summary_stats$malignant[-9,]$Min)`, it would 
+unlikely affect the accuracy of the classifiers model. This is because benign
+tissue sample variables show lower spread in the standard deviation, ranging 
+from `r min(summary_stats$benign[-9,]$SD)` to 
+`r max(summary_stats$benign[-9,]$SD)` indicating that the outliers
+have little effect on the means of the dataset; on the other hand, even though
+malignant tissue samples contain higher spread with standard deviation ranging 
+from `r min(summary_stats$malignant[-9,]$SD)` to 
+`r max(summary_stats$malignant[-9,]$SD)`, this is likely due to the larger range
+of mean values of the malignant variable, `r min(summary_stats$malignant[-9,]$Mean)` to
+`r max(summary_stats$malignant[-9,]$Mean)`, as larger values tends to indicates higher 
+chance of a malignant tissue tumor anyways. This is further supported by comparing 
+the benign tissue medians ranging from `r min(summary_stats$benign[-9,]$Median)`
+to `r max(summary_stats$benign[-9,]$Median)` whereas the malignant tissue 
+medians ranging from `r min(summary_stats$malignant[-9,]$Median)`
+to `r max(summary_stats$malignant[-9,]$Median)`, showing the divide between 
+lower cytological characteristics classifying as benign and higher classifying
+as malignant.
+
+For the "Mitoses" variables, the mean values of benign and malignant tissues 
+are much closer together, `r summary_stats$benign[9,]$Mean` and 
+`r summary_stats$malignant[9,]$Mean`. This shows that it would likely be harder
+to distinguish between benign tissue samples and malignant tissue samples using
+that variable.
+
+```{r, echo=FALSE, warning=FALSE, error=FALSE}
+knitr::kable(summary_stats$benign, caption = "Summary of benign tissue sample")
+knitr::kable(summary_stats$malignant, caption = "Summary of malignant tissue sample")
+```
+Investigating further, the "Cell.shape" and "Cell.size" are highly correlated
+with a correlation of `r paste0(round(100 * cor_bc["Cell.size", "Cell.shape"], 2), "%")`
+showing that one of the variables is redundant to other as both represent similar
+cytological characteristics (See [Appendix](#appendix) for the correlation heatmap).
+
+
+## Modelling
+
+For the classifier models, 3 models will be built:-
+
+1) Logistic Regression with BIC subset selection
+
+2) Logistic Regression with LASSO regularisation
+
+3) Linear Discriminant Analysis (LDA)
+
+This section of the report examines how each classifier model behaves when
+inputted with the `BreastCancer` dataset, in terms of what variables where 
+dropped and what are the most significant coefficients predicted variable in 
+each model.
+
+In the next section, ["Cross Validation and Determining Best Model"](#cross-validation-and-determining-best-model), the models will be 
+evaluated under the K-fold cross validation to determine which model is the
+"best" in identifying benign tissue samples and malignant tissue samples.
+
+### BIC Subset Selection
+
+Using the BIC subset selection, it identified that the best subset of 
+columns are `r paste0("\"", col_bss, "\"")`, a total of 5 out the 9 
+explanatory variables. These variables are the best coefficients to determining if a 
+tissue sample is benign or malignant.
+
+Running the Logistic Regression with the selected best subset by BIC had show 
+that all of the selected explanatory variables are highly significant as all have
+have p-value of basically a zero.
+
+```{r, echo=FALSE, warning=FALSE, error=FALSE}
+## Reset multipanel back to 1x1
+par(mfrow=c(1,1))
+
+plot(0:p, bss_fit_BIC$Subsets$BIC, xlab="Number of predictors", ylab="BIC", type="b", main="BIC best subset plot")
+points(best_BIC, bss_fit_BIC$Subsets$BIC[best_BIC+1], col="red", pch=16)
+```
+
+```{r, echo=FALSE, warning=FALSE, error=FALSE}
+bss_fit_BIC
+```
+
+### LASSO Regluarisation
+
+Before running the Logistic Regression with LASSO regularisation, it is
+important to first determine the best lambda value through grid search to retrieve
+the optimal tuning parameter of lambda to get the best result of 
+LASSO regularisation.
+
+<!-- The grid search values range from $\lambda_=10^{4}$ (high shrinkage) to -->
+<!-- $\lambda_=10^{-4}$ (low shrinkage). -->
+
+<!-- ```{r, echo=FALSE, warning=FALSE, error=FALSE} -->
+<!-- ## Examine the effect of the tuning parameter on the parameter estimates -->
+<!-- plot(lasso_fit, xvar="lambda", col=rainbow(p), label=TRUE, main="Tuning Parameter on Coefficient Estimates") -->
+
+<!-- table_for_ref = data.frame( -->
+<!--     Index = c(1, 2, 3, 4, 5, 6, 7, 8, 9), -->
+<!--     Variables = data_cols -->
+<!-- ) -->
+
+<!-- knitr::kable(table_for_ref, caption = "Reference table for LASSO's Tuning Parameter graph") -->
+<!-- ``` -->
+
+When selecting the optimal lambda variable that provides the lowest rate
+of misclassification, 
+none of the coefficient has been
+dropped showing that in LASSO regularisation that all of the explanatory
+variables are significant enough for performing classification of tissue samples
+as benign or malignant in logistic regression.
+
+```{r, echo=FALSE, warning=FALSE, error=FALSE}
+plot(lasso_cv_fit, main = "Misclassification Error per log lambda tuning parameter")
+knitr::kable(as.matrix(coef(lasso_fit, s=lambda_lasso_min)), caption = "Coefficients under the optimal tuning parameter")
+```
+
+<!-- # ```{r, echo=FALSE, warning=FALSE, error=FALSE} -->
+<!-- # # Perform bootstrap to obtain standard errors, z-values, and p-values -->
+<!-- # n_boot <- 1000  # Number of bootstrap samples -->
+<!-- # coefs_boot <- matrix(0, nrow = n, ncol = p) -->
+<!-- #  -->
+<!-- # # Compute standard errors, z-values, and p-values -->
+<!-- # se_boot <- apply(coefs_boot, 2, sd) -->
+<!-- # z_values <- coef(lass_fit, s = lambda_lasso_min) / se_boot -->
+<!-- # p_values <- 2 * (1 - pnorm(abs(z_values))) -->
+<!-- #  -->
+<!-- # # Display results -->
+<!-- # results <- data.frame( -->
+<!-- #   Coefficient = names(fit$beta), -->
+<!-- #   Estimate = coef(fit, s = fit$lambda.min), -->
+<!-- #   Standard_Error = se_boot, -->
+<!-- #   Z_Value = z_values, -->
+<!-- #   P_Value = p_values -->
+<!-- # ) -->
+
+<!-- knitr::kable(as.matrix(coef(lasso_fit, s=lambda_lasso_min)), -->
+<!--              caption = "Coefficient of Logistic Regression with LASSO Regularisation") -->
+<!-- ``` -->
+
+### Linear Discriminant Analysis (LDA)
+
+After running the LDA, investigating the histogram of the groups shows that there are an 
+excellent separation of the data that represents benign (group 0) and malignant
+(group 1). This is more evident when looking at the group means for each 
+explanatory variables, where benign tissue samples cytological characteristics 
+are lower than malignant.
+
+This makes logical sense because, as discuss in the
+["Exploratory Data Analysis"](#explanatory-data-analysis), the cytological 
+charateristics of benign tissue samples are generally lower than malignant
+tissue samples.
+
+```{r, echo=FALSE, warning=FALSE, error=FALSE}
+ldahist(lda_values$x[,1], g = bc_no_id$Class)
+```
+```{r, echo=FALSE, warning=FALSE, error=FALSE}
+knitr::kable(lda_fit$means, caption = "LDA Group Means (rows 0 = benign, 1 = malignant)")
+```
+
+## Cross Validation Evaluation and Determining Best Model
+
+As discuss under ["Exploratory Data Analysis"](#exploratory-data-analysis) and
+["Modelling"](#modelling), 
+K-fold cross validation will be used to evaluate each of the implemented models, 
+specifically a K-fold of 10 will be used for better evaluation of the models.
+
+### Results
+
+```{r, echo=FALSE, warning=FALSE, error=FALSE}
+knitr::kable(cv_data,
+             caption = "Accuracy of Classification per model")
+```
+
+
+```{r, echo=FALSE, warning=FALSE, error=FALSE}
+# BIC MODEL
+bic_test_confusion = as.data.frame(bic_model$test_confusion)
+colnames(bic_test_confusion) = c("Predicted Benign", "Predicted Malignant")
+rownames(bic_test_confusion) = c("Ground-Truth Bengin", "Ground-Truth Malignant")
+
+bic_test_confusion = bic_test_confusion %>%
+    mutate(`Predicted Benign` = round(100 * `Predicted Benign`, 2),
+           `Predicted Malignant` = round(100 *`Predicted Malignant`, 2))
+
+# LASSO MODEL
+lasso_test_confusion = as.data.frame(lasso_model$test_confusion)
+colnames(lasso_test_confusion) = c("Predicted Benign", "Predicted Malignant")
+rownames(lasso_test_confusion) = c("Ground-Truth Bengin", "Ground-Truth Malignant")
+
+lasso_test_confusion = lasso_test_confusion %>%
+    mutate(`Predicted Benign` = round(100 * `Predicted Benign`, 2),
+           `Predicted Malignant` = round(100 *`Predicted Malignant`, 2))
+
+# LDA MODEL
+lda_test_confusion = as.data.frame(lda_model$test_confusion)
+colnames(lda_test_confusion) = c("Predicted Benign", "Predicted Malignant")
+rownames(lda_test_confusion) = c("Ground-Truth Bengin", "Ground-Truth Malignant")
+
+lda_test_confusion = lda_test_confusion %>%
+    mutate(`Predicted Benign` = round(100 * `Predicted Benign`, 2),
+           `Predicted Malignant` = round(100 *`Predicted Malignant`, 2))
+
+knitr::kable(bic_test_confusion,
+             caption = "Test set on Logistic Regression with BIC subset selection under K-fold 10 Cross Validation")
+knitr::kable(lasso_test_confusion,
+             caption = "Test set on Logistic Regression with LASSO under K-fold 10 Cross Validation")
+knitr::kable(lda_test_confusion,
+             caption = "Test set on Linear Discriminant Analysis (LDA) under K-fold 10 Cross Validation")
+```
+
+The Logistic Regression with BIC scores the highest test error rate of all the models
+with a rate of `r cv_data %>% filter(test_error_rate == max(test_error_rate)) %>% pull(test_error_rate) %>% paste0("%")`. It also has the highest False Positives and 
+False Negative of `r bic_test_confusion[2,1] %>% paste0("%")` and 
+`r bic_test_confusion[1,2] %>% paste0("%")` respectively.
+
+
+The Logistic regression with LASSO has the least test error rate of all the models
+with a rate of `r cv_data %>% filter(test_error_rate == min(test_error_rate)) %>% pull(test_error_rate) %>% paste0("%")`. It also has the least False Positives and
+the second least False Negatives of `r lasso_test_confusion[2,1] %>% paste0("%")` and
+`r lasso_test_confusion[1,2] %>% paste0("%")` respectively.
+
+The LDA has the second least test error rate of all the models with a rate 
+of `r cv_data %>% filter(models == "LDA") %>% pull(test_error_rate) %>% paste0("%")`.
+It also has the second least False Positives and the least False Negatives of `r lda_test_confusion[2,1] %>% paste0("%")` and
+`r lda_test_confusion[1,2] %>% paste0("%")` respectively.
+
+
+### Determining the Best Model
+
+Although the Logistic Regression with BIC model achieved the worst metrics 
+between the other models, it still has achieved a respectable `r cv_data %>% filter(test_accuracy_rate == min(test_accuracy_rate)) %>% pull(test_accuracy_rate) %>% paste0("%")` test accuracy with 
+only 3 to 4 explanatory variables out 9 (See [Appendix, Cross Validation Results](#cross-validation-results)). Furthermore, in the context of medical 
+diagnosis of the tissue samples, the lower False Negative 
+(`r bic_test_confusion[1,2] %>% paste0("%")`) can be argued to be more important 
+than the relatively high False Positives (`r bic_test_confusion[2,1] %>% paste0("%")`) as 
+falsely informing patients that they do not have a malignant tissue can lead to
+unchecked treatment and may lead to fatality compare to falsely informing 
+patients that they do have a malignant as it means the patients will receive 
+unnecessary treatment but with less risk of fatality. Therefore, this model
+could be used if speed is priority in diagnosis.
+
+For the most accurate model, Logistic Regression with LASSO has the highest 
+test accuracy rate of all models with a rate of `r cv_data %>% filter(test_accuracy_rate == max(test_accuracy_rate)) %>% pull(test_accuracy_rate) %>% paste0("%")` whereas 
+the LDA model follows closely with test accuracy rate of `r cv_data %>% filter(models == "LDA") %>% pull(test_accuracy_rate) %>% paste0("%")`. However,
+even though it has better False Positive rate 
+(`r lasso_test_confusion[2,1] %>% paste0("%")` compare to LDA model 
+`r lda_test_confusion[2,1] %>% paste0("%")`), it has a worse False Negative rate of
+`r lasso_test_confusion[1,2] %>% paste0("%")`
+compare to
+LDA models' False Negative rate of `r lda_test_confusion[1,2] %>% paste0("%")`.
+As discussed earlier, having better False Negative is much preferred than 
+False Positives as miss diagnosing patients with benign but they actually
+have malignant tissues can lead to fatality due to unchecked treatment.
+
+In summary, if the scenario values speed with relatively high accuracy then
+Logistic Regression with BIC is the best model otherwise if the scenario 
+values absolute accuracy with little miss diagnosis of malignant tissues then 
+the LDA model is the best model.
+
+
+\newpage
+## Appendix
+
+```{r, echo=FALSE, warning=FALSE, error=FALSE, fig.cap="Scatterplot matirx of `BreastCancer` dataset (benign = black, malignant = red)"}
+pairs(bc_no_id[,-ncol(bc_no_id)], # X1 explanatory variables
+      col = bc_no_id$Class+1)     # y response variable
+```
+
+
+```{r, echo=FALSE, warning=FALSE, error=FALSE, fig.cap="Correlation heatmap for the `BreastCancer` dataset"}
+# heatmap(cor_bc,
+#         main = "Correlation Heatmap",
+#         Rowv=NA,
+#         Colv=NA,
+#         scale = "column",  # scale columns
+#         cexCol = 0.8,  # adjust column label size
+#         cexRow = 0.8,  # adjust row label size
+#         key.title = "Correlation",  # legend title
+#         key.xlab = "Correlation Value",  # x-axis label of the legend
+#         key.ylab = NA,  # y-axis label of the legend
+#         keysize = 1.0  # size of the legend
+#         )
+
+# Convert the correlation matrix to long format
+cor_bc_long = as.data.frame(as.table(cor_bc))
+
+# Create a ggplot heatmap
+ggplot(cor_bc_long, aes(x = Var1, y = Var2, fill = Freq)) +
+    geom_tile() +
+    # scale_fill_gradient(low = "orange", high = "blue", limits = c(0, 1)) +
+    scale_fill_viridis_c(option = "magma", limits = c(0, 1)) +
+    labs(title = "Correlation Heatmap", x = "", y = "") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 8),
+          axis.text.y = element_text(size = 8),
+          plot.title = element_text(size = 12, face = "bold"))
+```
+
+\newpage
+### Cross Validation Results
+
+```{r, echo=FALSE, warning=FALSE, error=FALSE}
+bic_model$other
+for (i in 1:10) {
+    print(paste("Fold Index:", index))
+    print(coef(lasso_model$models[[i]], s = lasso_model$other[[i]]))
+}
+```
