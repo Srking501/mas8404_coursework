@@ -531,6 +531,7 @@ summary(lda_fit)
 coef(lda_fit)
 
 lda_values = predict(lda_fit)
+ldahist(lda_values$x[,1], g = bc_no_id$Class)
 
 # 4.2 Quadratic Discriminant Analysis (QDA)
 #####
@@ -589,31 +590,31 @@ cv_data = data.frame(
 
 cv_data
 
-index = 1
-lda_plots = list()
-for (lda_details in lda_model$other) {
-    lda_data = cbind(as.data.frame(lda_details$scores),
-                     as.data.frame(lda_details$classification))
-
-    print(head(lda_data))
-    print(paste("index:", index))
-
-    lda_data = lda_data %>%
-        dplyr::rename("lda1" = `0`,
-                      "lda2" = `1`,
-                      "Class" = `lda_details$classification`)
-
-    lda_plot_per_fold = ggplot(lda_data, aes(x = lda1, y = lda2, color = Class)) +
-        geom_point() +
-        labs(title = paste("LDA Plot", index), x = "LD1", y = "LD2") +
-        scale_color_manual(values = c("lightblue", "orange")) +
-        theme_minimal()
-
-    lda_plots[[index]] = lda_plot_per_fold
-
-    index = index + 1
-}
-
-print(lda_plots)
-
-grid.arrange(grobs = lda_plots, ncol = 5)
+# index = 1
+# lda_plots = list()
+# for (lda_details in lda_model$other) {
+#     lda_data = cbind(as.data.frame(lda_details$scores),
+#                      as.data.frame(lda_details$classification))
+#
+#     print(head(lda_data))
+#     print(paste("index:", index))
+#
+#     lda_data = lda_data %>%
+#         dplyr::rename("lda1" = `0`,
+#                       "lda2" = `1`,
+#                       "Class" = `lda_details$classification`)
+#
+#     lda_plot_per_fold = ggplot(lda_data, aes(x = lda1, y = lda2, color = Class)) +
+#         geom_point() +
+#         labs(title = paste("LDA Plot", index), x = "LD1", y = "LD2") +
+#         scale_color_manual(values = c("lightblue", "orange")) +
+#         theme_minimal()
+#
+#     lda_plots[[index]] = lda_plot_per_fold
+#
+#     index = index + 1
+# }
+#
+# print(lda_plots)
+#
+# grid.arrange(grobs = lda_plots, ncol = 5)

@@ -283,36 +283,58 @@ It also has the second least False Positives and the least False Negatives of `r
 
 ### Determining the Best Model
 
-Although the Logistic Regression with BIC model achieved the worst metrics 
-between the other models, it still has achieved a respectable `r cv_data %>% filter(test_accuracy_rate == min(test_accuracy_rate)) %>% pull(test_accuracy_rate) %>% paste0("%")` test accuracy with 
-only 3 to 4 explanatory variables out 9 (See [Appendix, Cross Validation Results](#cross-validation-results)). Furthermore, in the context of medical 
-diagnosis of the tissue samples, the lower False Negative 
-(`r bic_test_confusion[1,2] %>% paste0("%")`) can be argued to be more important 
-than the relatively high False Positives (`r bic_test_confusion[2,1] %>% paste0("%")`) as 
-falsely informing patients that they do not have a malignant tissue can lead to
-unchecked treatment and may lead to fatality compare to falsely informing 
-patients that they do have a malignant as it means the patients will receive 
-unnecessary treatment but with less risk of fatality. Therefore, this model
-could be used if speed is priority in diagnosis.
+```{r, echo=FALSE, warning=FALSE, error=FALSE}
+confusion_matrix = bic_test_confusion %>%
+    mutate(`Predicted Benign`    = c("True Positive", "False Positive"),
+           `Predicted Malignant` = c("False Negative", "True Negative"))
+knitr::kable(confusion_matrix, caption = "Reference table to show where is True Positive, False Positive, False Negative and True Negative")
+```
+Before proceeding with the analysis, the following describes:
 
-For the most accurate model, Logistic Regression with LASSO has the highest 
+* True Positive  = Correctly Predicted Benign
+* False Positive = Incorrectly Predicted Benign (it was malignant)
+* False Negative = Incorrectly Predicted Malignant (it was benign)
+* True Negative  = Correctly Predicted Malignant
+
+Although the Logistic Regression with BIC model achieved an impressive 
+`r cv_data %>% filter(test_accuracy_rate == min(test_accuracy_rate)) %>% pull(test_accuracy_rate) %>% paste0("%")`
+with only 3 to 4 explanatory variables out of 9 (See [Appendix, Cross Validation Results](#cross-validation-results)), it has relatively high False Positive,
+`r bic_test_confusion[2,1] %>% paste0("%")`, 
+where it incorrectly predicted a tissue sample as being benign but in fact it 
+was a malignant. In the context of medical 
+diagnosis of the tissue samples, having a high False Positive could mean that 
+the patient will be unchecked for treatment, increasing the risk 
+of fatality. Thus, this model is discouraged due to compromising with a high False
+Positive rate (incorrectly predicted benign instead it was malignant) for the speed
+of the model.
+
+For the most accurate model, Logistic Regression with LASSO model has the highest 
 test accuracy rate of all models with a rate of `r cv_data %>% filter(test_accuracy_rate == max(test_accuracy_rate)) %>% pull(test_accuracy_rate) %>% paste0("%")` whereas 
-the LDA model follows closely with test accuracy rate of `r cv_data %>% filter(models == "LDA") %>% pull(test_accuracy_rate) %>% paste0("%")`. However,
-even though it has better False Positive rate 
-(`r lasso_test_confusion[2,1] %>% paste0("%")` compare to LDA model 
-`r lda_test_confusion[2,1] %>% paste0("%")`), it has a worse False Negative rate of
-`r lasso_test_confusion[1,2] %>% paste0("%")`
-compare to
-LDA models' False Negative rate of `r lda_test_confusion[1,2] %>% paste0("%")`.
-As discussed earlier, having better False Negative is much preferred than 
-False Positives as miss diagnosing patients with benign but they actually
-have malignant tissues can lead to fatality due to unchecked treatment.
+the LDA model follows closely with test accuracy rate of `r cv_data %>% filter(models == "LDA") %>% pull(test_accuracy_rate) %>% paste0("%")`. However, even though 
+the Logistic Regression with LASSO model has a higher False Negative 
+(incorrectly predicted malignant instead it was benign) with a rate of 
+`r lasso_test_confusion[1,2] %>% paste0("%")` whereas LDA model has a rate
+of `r lda_test_confusion[1,2] %>% paste0("%")`, the Logistic Regression 
+with LASSO model has a lower False Positive (incorrectly predicted benign instead it was malignant) with a rate of `r lasso_test_confusion[2,1] %>% paste0("%")` compare to
+LDA model's rate of `r lda_test_confusion[2,1] %>% paste0("%")`. Having the 
+patient miss diagnosed with malignant but in fact has a benign has a lower risk
+of fatality as the patient receives treatment, better than miss diagnosing a 
+patient with a benign but in fact it has a malignant, leaving the patient with a
+risk of fatality due to unchecked treatment. Therefore, the Logistic Regression
+with LASSO model is the better as a classifier
 
-In summary, if the scenario values speed with relatively high accuracy then
-Logistic Regression with BIC is the best model otherwise if the scenario 
-values absolute accuracy with little miss diagnosis of malignant tissues then 
-the LDA model is the best model.
-
+In summary, the Logistic Regression with BIC model has too much of a comprise 
+to gain a better speed by having 3 to 4 out of 9 explanatory variables but in 
+the cost of incorrectly diagnosing patients with benign but in fact they have 
+a malignant tissue (False Positive rate of `r bic_test_confusion[2,1] %>% paste0("%")`). 
+Therefore, the Logistic Regression with LASSO model is the 
+best model due to having the best test accuracy rate of `r cv_data %>% filter(test_accuracy_rate == max(test_accuracy_rate)) %>% pull(test_accuracy_rate) %>% paste0("%")`
+and lower False Positives than the LDA model 
+(`r lasso_test_confusion[2,1] %>% paste0("%")` and `r lda_test_confusion[2,1] %>% paste0("%")` respectively) - despite having higher cost of speed by using 8 to 9 out of 
+9 explanatory variables (See [Appendix, Cross Validation Results](#cross-validation-results))
+to achieve those metrics, it still did not compromise
+the False Positive rate like in the Logistic Regression with BIC model.
+ 
 
 \newpage
 ## Appendix
